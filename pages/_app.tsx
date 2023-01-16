@@ -1,21 +1,54 @@
-import {useState} from 'react'
-import {createBrowserSupabaseClient} from '@supabase/auth-helpers-nextjs'
-import {Session, SessionContextProvider} from '@supabase/auth-helpers-react'
-import {AppProps} from 'next/app'
+import { Session } from "@supabase/auth-helpers-react";
+import { useEffect, useState } from "react";
+import { AppProps } from "next/app";
+import { Auth } from "@supabase/ui";
+import "#/styles/globals.css";
+import { useRouter } from "next/router";
+import { supabase } from "#/utils/supabase";
 
-function MyApp({
-                   Component,
-                   pageProps,
-               }: AppProps<{
-    initialSession: Session,
+export default function MyApp({
+  Component,
+  pageProps,
+}: AppProps<{
+  initialSession: Session;
 }>) {
-    const [supabase] = useState(() => createBrowserSupabaseClient())
+  const [userLoaded, setUserLoaded] = useState(false);
+  const [user, setUser] = useState(null);
+  const [session, setSession] = useState(null);
+  const [userRoles, setUserRoles] = useState([]);
+  const router = useRouter();
 
-    return (
-        <SessionContextProvider supabaseClient={supabase} initialSession={pageProps.initialSession}>
-            <Component {...pageProps} />
-        </SessionContextProvider>
-    )
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUserLoaded(session ? true : false);
+      if (session?.user) {
+        // signIn();
+        router.push("/channels/[id]", "/channels/1");
+      }
+    });
+
+    const {
+      data: { subscription: authListener },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setSession(session);
+      const currentUser = session?.user;
+      setUser(currentUser ?? null);
+      setUserLoaded(!!currentUser);
+      if (currentUser) {
+        signIn(currentUser.id, currentUser.email);
+        router.push("/channels/[id]", "/channels/1");
+      }
+    });
+
+    return () => {
+      authListener.unsubscribe();
+    };
+  }, []);
+
+  return (
+    <Auth.UserContextProvider supabaseClient={supabase}>
+      <Component {...pageProps} />
+    </Auth.UserContextProvider>
+  );
 }
-
-export default MyApp
